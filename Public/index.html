@@ -548,7 +548,7 @@ window.onload = async function() {
   }
   
   
- if(data.token && !data.expiringSoon && data.minutes){
+ if(data.trap){
   document.getElementById("loginContainer").style.display = "none";
   document.getElementById("appContainer").style.display = "block";
   document.getElementById("viewer").src = SINGLE_LINK;

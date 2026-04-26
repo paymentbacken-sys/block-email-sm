@@ -415,8 +415,16 @@ async function login() {
 	
 	
 	
-	if(data.blocked){
-  errorBox.innerHTML = "Access permanently denied on this device.";
+if(data.blocked){
+  errorBox.innerHTML = `
+    This device has been restricted due to unauthorized attempts.<br><br>
+    
+    However, you can still register to get valid access.<br><br>
+
+    <a href="https://gten-educational-platform.github.io/Class-12/email.html" target="_blank" class="register-btn">
+      Register Now
+    </a>
+  `;
   return;
 }
 

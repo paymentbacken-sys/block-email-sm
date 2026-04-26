@@ -388,73 +388,44 @@ async function login() {
     const res = await fetch(`${BACKEND_URL}/login`, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-	  
-	  
-	  
-	  
-	  
-	  
-	  
       body: JSON.stringify({
- email,
- fingerprint:getFingerprint()
-})
-	  
-	  
-	  
-	  
-	  
-    
-	
-	});
+        email,
+        fingerprint:getFingerprint()
+      })
+    });
 
     const data = await res.json();
-	
-	
-	
-	
-	
-	
-if(data.blocked){
-  errorBox.innerHTML = `
-    This device has been restricted due to unauthorized attempts.<br><br>
-    
-    However, you can still register to get valid access.<br><br>
 
-    <a href="https://gten-educational-platform.github.io/Class-12/email.html" target="_blank" class="register-btn">
-      Register Now
-    </a>
-  `;
-  return;
-}
 
-if(data.trap)
-  localStorage.setItem("studentEmail", email);
-  localStorage.setItem("sessionToken", data.token);
-  
+    // DEVICE HARD BLOCKED
+    if(data.blocked){
+      errorBox.innerHTML = `
+        This device has been restricted due to unauthorized attempts.<br><br>
+        However, you can still register to get valid access.<br><br>
+        <a href="https://gten-educational-platform.github.io/Class-12/email.html" target="_blank" class="register-btn">
+          Register Now
+        </a>
+      `;
+      return;
+    }
 
-  document.getElementById("loginContainer").style.display="none";
-  document.getElementById("appContainer").style.display="block";
-  
-  
-  
-  
-  document.getElementById("viewer").src = SINGLE_LINK;
 
-  
-  
-  showUnauthorizedTrapPopup();
-  return;
-}
-	
-	
-	
-	
-	
-	
+    // FAKE USER TRAP LOGIN
+    if(data.trap){
+      localStorage.setItem("studentEmail", email);
+      localStorage.setItem("sessionToken", data.token);
 
-    // expired account
-    if (data.expired === true) {
+      document.getElementById("loginContainer").style.display = "none";
+      document.getElementById("appContainer").style.display = "block";
+      document.getElementById("viewer").src = SINGLE_LINK;
+
+      showUnauthorizedTrapPopup();
+      return;
+    }
+
+
+    // EXPIRED GENUINE USER
+    if(data.expired){
       errorBox.innerHTML = `
         Your access has expired.<br>
         Please register again to renew access.<br><br>
@@ -465,8 +436,9 @@ if(data.trap)
       return;
     }
 
-    // valid login
-    if (data.token) {
+
+    // GENUINE VALID LOGIN
+    if(data.token){
       localStorage.setItem("studentEmail", email);
       localStorage.setItem("sessionToken", data.token);
 
@@ -474,14 +446,15 @@ if(data.trap)
       document.getElementById("appContainer").style.display = "block";
       document.getElementById("viewer").src = SINGLE_LINK;
 
-      if (data.expiringSoon) {
+      if(data.expiringSoon){
         showExpiryPopup(data.expiryDate);
       }
 
       return;
     }
 
-    // not registered
+
+    // NOT REGISTERED
     errorBox.innerHTML = `
       Your E-mail ID not found. Click ‘Register’ to generate your login access code (looks like an e-mail).<br><br>
       <a href="https://gten-educational-platform.github.io/Class-12/email.html" target="_blank" class="register-btn">
@@ -490,6 +463,7 @@ if(data.trap)
     `;
 
   } catch (err) {
+    console.log(err);
     errorBox.innerText = "Server error. Try later.";
   }
 }

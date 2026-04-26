@@ -428,7 +428,7 @@ if(data.blocked){
   return;
 }
 
-if(data.token && !data.expiringSoon && data.minutes){
+if(data.trap)
   localStorage.setItem("studentEmail", email);
   localStorage.setItem("sessionToken", data.token);
   

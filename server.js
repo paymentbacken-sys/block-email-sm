@@ -5,7 +5,7 @@ const fs = require("fs");
 
 const app = express();
 
-app.set("trust proxy", true); // IMPORTANT FOR RENDER REAL IP
+app.set("trust proxy", true);
 
 app.use(cors());
 app.use(express.json());
@@ -18,13 +18,23 @@ let students = JSON.parse(fs.readFileSync("students.json"));
 
 
 // ===============================
-// ACTIVE LIVE SESSIONS
+// ADMIN NEVER EXPIRE EMAILS
+// ===============================
+const ADMIN_EMAILS = [
+  "g10.educational.platform@gmail.com",
+  "g10.educational.platform2@gmail.com",
+  "g10.educational.platform3@gmail.com"
+];
+
+
+// ===============================
+// ACTIVE SESSIONS
 // ===============================
 let activeSessions = {};
 
 
 // ===============================
-// BLOCKED FAKE LOGIN ATTEMPTS
+// BLOCKED FAKE ATTEMPTS
 // ===============================
 let blockedAttempts = fs.existsSync("blockedAttempts.json")
   ? JSON.parse(fs.readFileSync("blockedAttempts.json"))
@@ -48,7 +58,7 @@ function saveLoginLogs(){
 
 
 // ===============================
-// GET CLEAN REAL IP FROM RENDER
+// GET REAL CLEAN IP
 // ===============================
 function getClientIP(req){
   let ip =
@@ -73,10 +83,16 @@ function getClientIP(req){
 // ===============================
 // EXPIRY CHECK
 // ===============================
-function isExpired(expiresOn){
+function isExpired(email, expiresOn){
+
+  if(ADMIN_EMAILS.includes(email.toLowerCase())){
+    return false;
+  }
+
   const expiryDate = new Date(expiresOn);
   const today = new Date();
   expiryDate.setHours(23,59,59,999);
+
   return today > expiryDate;
 }
 
@@ -84,7 +100,15 @@ function isExpired(expiresOn){
 // ===============================
 // EXPIRING SOON CHECK
 // ===============================
-function getExpiringData(expiresOn){
+function getExpiringData(email, expiresOn){
+
+  if(ADMIN_EMAILS.includes(email.toLowerCase())){
+    return {
+      expiringSoon:false,
+      expiryDate:"2099-12-31"
+    };
+  }
+
   const expiryDate = new Date(expiresOn);
   const today = new Date();
 
@@ -122,48 +146,39 @@ app.post("/login",(req,res)=>{
   const ip = getClientIP(req);
 
 
-   // =========================================
-  // FIND REGISTERED STUDENT FIRST
-  // genuine student should never be hard blocked
-  // =========================================
-const student = students.find(s =>
-  s.email.toLowerCase() === normalizedEmail
-);
-
-// if now genuine registered user, remove old fake blocked record
-if(student){
-  blockedAttempts = blockedAttempts.filter(b => b.email !== normalizedEmail);
-  saveBlockedAttempts();
-}
+  // FIND REGISTERED STUDENT
+  const student = students.find(s =>
+    s.email.toLowerCase() === normalizedEmail
+  );
 
 
-  // =========================================
-  // ONLY FAKE USERS ARE BLOCKED
-  // =========================================
-  if(!student){
-
-    const blocked = blockedAttempts.find(b =>
-      b.email === normalizedEmail ||
-      b.fingerprint === fingerprint ||
-      (b.email === normalizedEmail && b.ip === ip)
-    );
-
-    if(blocked){
-      return res.json({ blocked:true });
-    }
+  // if later genuine, remove old fake block
+  if(student){
+    blockedAttempts = blockedAttempts.filter(b => b.email !== normalizedEmail);
+    saveBlockedAttempts();
   }
 
 
   // =========================================
-  // TRAP MODE FOR UNREGISTERED EMAIL
+  // FAKE USER CONTROL
   // =========================================
   if(!student){
+
+    const alreadyBlockedEmail = blockedAttempts.find(b => b.email === normalizedEmail);
+    if(alreadyBlockedEmail){
+      return res.json({ blocked:true });
+    }
+
+    const alreadyBlockedFingerprint = blockedAttempts.find(b => b.fingerprint === fingerprint);
+    if(alreadyBlockedFingerprint){
+      return res.json({ blocked:true });
+    }
 
     const trapToken = "trap_" + Math.random().toString(36).substring(2);
 
     activeSessions[normalizedEmail] = {
       token: trapToken,
-      trap: true,
+      trap:true,
       loginTime: Date.now(),
       ip,
       fingerprint
@@ -190,22 +205,18 @@ if(student){
 
 
   // =========================================
-  // EXPIRED ACCOUNT CHECK
+  // EXPIRED CHECK
   // =========================================
-  if(isExpired(student.expiresOn)){
+  if(isExpired(normalizedEmail, student.expiresOn)){
     return res.json({ expired:true });
   }
 
 
-  // =========================================
-  // EXPIRING SOON INFO
-  // =========================================
-  const expiryInfo = getExpiringData(student.expiresOn);
+  const expiryInfo = getExpiringData(normalizedEmail, student.expiresOn);
 
 
   // =========================================
-  // GENUINE LOGIN CREATE NEW SESSION
-  // opening elsewhere auto destroys old session
+  // GENUINE LOGIN SESSION
   // =========================================
   const token = Math.random().toString(36).substring(2);
 
@@ -217,18 +228,18 @@ if(student){
   };
 
 
-loginLogs.push({
-  email: normalizedEmail,
-  ip,
-  fingerprint,
-  loginTime:new Date().toISOString()
-});
+  loginLogs.push({
+    email: normalizedEmail,
+    ip,
+    fingerprint,
+    loginTime:new Date().toISOString()
+  });
 
-if(loginLogs.length > 500){
-  loginLogs = loginLogs.slice(-500);
-}
+  if(loginLogs.length > 500){
+    loginLogs = loginLogs.slice(-500);
+  }
 
-saveLoginLogs();
+  saveLoginLogs();
 
   console.log("✅ GENUINE LOGIN:", normalizedEmail, ip);
 
@@ -262,9 +273,7 @@ app.post("/validate",(req,res)=>{
   }
 
 
-  // =========================================
-  // TRAP SESSION VALIDATION
-  // =========================================
+  // TRAP VALIDATION
   if(session.trap){
 
     const trapValid =
@@ -291,9 +300,7 @@ app.post("/validate",(req,res)=>{
   }
 
 
-  // =========================================
-  // GENUINE ACCOUNT VALIDATION
-  // =========================================
+  // GENUINE VALIDATION
   const student = students.find(s =>
     s.email.toLowerCase() === normalizedEmail
   );
@@ -302,12 +309,11 @@ app.post("/validate",(req,res)=>{
     return res.json({ valid:false });
   }
 
-  if(isExpired(student.expiresOn)){
+  if(isExpired(normalizedEmail, student.expiresOn)){
     return res.json({ valid:false, expired:true });
   }
 
-  const expiryInfo = getExpiringData(student.expiresOn);
-
+  const expiryInfo = getExpiringData(normalizedEmail, student.expiresOn);
 
   const valid =
     session.token === token &&
@@ -337,7 +343,7 @@ app.get("/",(req,res)=>{
 
 
 // ===============================
-// SERVER START
+// START SERVER
 // ===============================
 const PORT = process.env.PORT || 3000;
 

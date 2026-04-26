@@ -126,9 +126,15 @@ app.post("/login",(req,res)=>{
   // FIND REGISTERED STUDENT FIRST
   // genuine student should never be hard blocked
   // =========================================
-  const student = students.find(s =>
-    s.email.toLowerCase() === normalizedEmail
-  );
+const student = students.find(s =>
+  s.email.toLowerCase() === normalizedEmail
+);
+
+// if now genuine registered user, remove old fake blocked record
+if(student){
+  blockedAttempts = blockedAttempts.filter(b => b.email !== normalizedEmail);
+  saveBlockedAttempts();
+}
 
 
   // =========================================
@@ -211,13 +217,18 @@ app.post("/login",(req,res)=>{
   };
 
 
-  loginLogs.push({
-    email: normalizedEmail,
-    ip,
-    fingerprint,
-    loginTime:new Date().toISOString()
-  });
-  saveLoginLogs();
+loginLogs.push({
+  email: normalizedEmail,
+  ip,
+  fingerprint,
+  loginTime:new Date().toISOString()
+});
+
+if(loginLogs.length > 500){
+  loginLogs = loginLogs.slice(-500);
+}
+
+saveLoginLogs();
 
   console.log("✅ GENUINE LOGIN:", normalizedEmail, ip);
 

@@ -122,26 +122,30 @@ app.post("/login",(req,res)=>{
   const ip = getClientIP(req);
 
 
-  // =========================================
-  // PERMANENT BLOCK CHECK FOR FAKE USERS
-  // =========================================
-  const blocked = blockedAttempts.find(b =>
-    b.email === normalizedEmail ||
-    b.fingerprint === fingerprint ||
-    (b.email === normalizedEmail && b.ip === ip)
-  );
-
-  if(blocked){
-    return res.json({ blocked:true });
-  }
-
-
-  // =========================================
-  // FIND REGISTERED STUDENT
+   // =========================================
+  // FIND REGISTERED STUDENT FIRST
+  // genuine student should never be hard blocked
   // =========================================
   const student = students.find(s =>
     s.email.toLowerCase() === normalizedEmail
   );
+
+
+  // =========================================
+  // ONLY FAKE USERS ARE BLOCKED
+  // =========================================
+  if(!student){
+
+    const blocked = blockedAttempts.find(b =>
+      b.email === normalizedEmail ||
+      b.fingerprint === fingerprint ||
+      (b.email === normalizedEmail && b.ip === ip)
+    );
+
+    if(blocked){
+      return res.json({ blocked:true });
+    }
+  }
 
 
   // =========================================
